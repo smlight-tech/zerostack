@@ -1,0 +1,171 @@
+# ZeroStack — Full Technical Reference, Diagnostics Catalog & Hardware Benchmarks (`Release Zero (0.9.9-beta.1)`)
+
+> **Official ZeroStack Overview & Firmware**: https://smlight.tech/software/zerostack
+> **Interactive Web Log Analyzer**: https://smlight-tech.github.io/zerostack/
+> **Technical Whitepaper Part 1 (PDF)**: https://smlight-tech.github.io/zerostack/whitepapers/zerostack-whitepaper-part-1.pdf
+> **MCP Server (`zerostack-mcp`)**: https://github.com/zerostack-rf/zerostack-mcp
+> **Release**: Release Zero (`0.9.9-beta.1`) (version `0.9.9-beta.1`)
+
+---
+
+## 1. Executive Summary & Supported Hardware (`Release Zero (0.9.9-beta.1)`)
+
+**ZeroStack** (`https://smlight.tech/software/zerostack`) is a deterministic, $O(1)$ Zigbee 3.0 / PRO R23 Coordinator & Router runtime engine for **SMLIGHT `SLZB-06` and `SLZB-07` series coordinators** built on the **TI SimpleLink F2 (`CC2652P`, `CC2652P7`, `CC1352P7`, `CC2674P10`)** family.
+
+### Supported SMLIGHT Coordinator Matrix (TI SimpleLink F2)
+
+All supported models run **Zigbee 3.0 / PRO R23 Coordinator & Router** firmware with DMA-driven UART and **Live Auto-Baud (`115200`, `460800`, `1000000` baud)**:
+
+| Coordinator Model | Radio SoC | CPU | SRAM / Flash | Hardware RTS/CTS | Form Factor |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`SLZB-06`** | `TI CC2652P` | Cortex-M4F @ `48 MHz` | `88 KB` / `352 KB` | No | Ethernet / PoE / USB / Wi-Fi |
+| **`SLZB-06U`** | `TI CC2652P` | Cortex-M4F @ `48 MHz` | `88 KB` / `352 KB` | Yes (`DIO10` / `DIO11`) | Ethernet / PoE / USB / Wi-Fi |
+| **`SLZB-06P7`** / **`SLZB-06P7v1`** | `TI CC2652P7` / `CC1352P7` | Cortex-M4F @ `48 MHz` | `144 KB` / `704 KB` | No | Ethernet / PoE / USB / Wi-Fi |
+| **`SLZB-06P7U`** | `TI CC2652P7` / `CC1352P7` | Cortex-M4F @ `48 MHz` | `144 KB` / `704 KB` | Yes (`DIO10` / `DIO11`) | Ethernet / PoE / USB / Wi-Fi |
+| **`SLZB-07P7`** | `TI CC2652P7` | Cortex-M4F @ `48 MHz` | `144 KB` / `704 KB` | No | USB Dongle |
+| **`SLZB-06P10`** | `TI CC2674P10` | Cortex-M33F @ `48 MHz` | `256 KB` / `1024 KB` | Yes (`DIO10` / `DIO11`) | Ethernet / PoE / USB / Wi-Fi |
+| **`SLZB-07P10`** | `TI CC2674P10` | Cortex-M33F @ `48 MHz` | `256 KB` / `1024 KB` | No | USB Dongle |
+
+*(Note on Silicon Labs `EFR32MG21` / `EFR32MG24`: Cross-vendor diagnostic rules for `0x72` `EMBER_MAX_MESSAGE_LIMIT_REACHED`, `0xa1` `EMBER_NETWORK_BUSY`, `ASH_NCP_FATAL_ERROR`, and `EUSART0_IF` are included in the ZeroStack diagnostic tools for engineers comparing coordinator platforms. ZeroStack `Release Zero (0.9.9-beta.1)` ships on SMLIGHT TI SimpleLink F2 coordinators while EFR32 support is in active development.)*
+
+---
+
+## 2. Verified Hardware Validation Measurements (`TI CC1352P7` @ `48.0 MHz`, `DWT->CYCCNT`, `1 µs = 48 cycles`)
+
+All measurements below were captured on physical **`TI CC1352P7` (`48.0 MHz` ARM Cortex-M4F)** silicon using the hardware `DWT->CYCCNT` cycle counter (`1 µs = 48 CPU cycles`), comparing legacy TI Z-Stack (`ZNP 3.x`) against **ZeroStack `Release Zero (0.9.9-beta.1)`** (`https://smlight.tech/software/zerostack`).
+
+### Part 1: Deterministic Execution Latency (`O(1)` vs `O(N)` Scaling)
+
+| Operation / Subsystem | Legacy TI Z-Stack (`ZNP 3.x`) | ZeroStack `Release Zero (0.9.9-beta.1)` | Verified Speedup / Impact |
+| :--- | :--- | :--- | :--- |
+| **TCLK Lookup (300-entry table, miss / first contact)** | `1,486,228` cycles (`30.96 ms`) | **`326` cycles (`6.8 µs`)** | **4,559× faster** (`0` flash reads) |
+| **TCLK Lookup (300-entry table, oldest-record hit, age 383)** | `620,396` cycles (`12.92 ms`) | **`324` cycles (`6.75 µs`)** | **1,915× faster** (`Slot 0`: `417` vs `2,961` cyc = **7.1×**; `Slot 299`: `324` vs `2,962` cyc = **9.1×**) |
+| **Per-Frame NWK Security Encrypt (`D=150` devices)** | `533,156` cycles (`11.11 ms`) | **`3,968` cycles (`82.7 µs`)** | **134.4× faster** ($O(1)$, `0` flash reads; `D=0`: `3,980` vs `8,558` cyc = **2.15×**) |
+| **Per-Frame NWK Security Decrypt (`D=150` devices)** | `532,182` cycles (`11.09 ms`) | **`3,824` cycles (`79.7 µs`)** | **139.2× faster** ($O(1)$, `0` flash reads) |
+| **Routed Hop Security Ceiling (`D=150`, 1 Decrypt + 1 Encrypt)** | `22.19 ms` (`~45 routed pkt/s` ceiling) | **`162 µs` (`7,792` cyc, `>6,100 routed pkt/s`)** | **135× higher routed packet ceiling** |
+| **Per-Frame APS TX Security (300-peer table, `D=0..100`)** | `52,909–409,301` cycles (`8.53 ms`) | **`5,410–5,424` cycles (`0.113 ms` / `113 µs`)** | **Up to 75.5× faster** |
+| **Device Authentication Check (`Slot 0 -> 299`)** | `1,656 -> 42,243` cycles (`880 µs`) | **`181 -> 179` cycles (`3.7 µs`)** | **236× faster** |
+| **NVM Stack Key Read (`D = 0 -> 150`)** | `2,347 -> 64,817` cycles (`1.35 ms`) | **`302–303` cycles (`6.3 µs`)** | **213.9× faster** |
+| **Idempotent NVM State Write (Unchanged `100 B` record, 48 writes)** | `100,714` cycles (writes flash 48/48 times) | **`3,770` cycles (`0 B` flash 48/48 times)** | **26.7× faster + 0% unnecessary flash wear** |
+| **NVM Compaction Frequency** | First compaction at **write #69 (`163.9 ms` stall)** | First compaction at **write #1,013 (`13.7 ms` stall)** | **14.7× lower compaction frequency** |
+| **Dynamic Memory Allocation (`malloc` @ `k=64` heap holes)** | `2,550` cycles | **`218` cycles ($O(1)$ constant time)** | **11.7× faster** |
+| **Timer Start Latency (`T=39` active timers, 64 heap holes)** | `10,034` cycles (`209.0 µs`) | **`1,448` cycles (`30.2 µs`, heap-independent)** | **6.9× faster** |
+| **Inter-Task Event Enqueue (`msgSend`, `Q=64` queued events)** | `935` cycles | **`322` cycles ($O(1)$ flat)** | **2.9× faster** |
+| **Host Serial Round-Trip (`SYS_PING` @ `115,200` baud)** | `9,790` cycles (reply path: `4,921` cyc; 240B: `24,404` cyc) | **`4,618` cycles (reply path: `816` cyc; 240B: `12,784` cyc)** | **53% fewer total / 83% fewer reply / 48% fewer 240B** |
+
+### Part 2: Adversarial Resilience, Fault Injection & Storm Recovery
+
+| Adversarial / Stress Scenario | Legacy TI Z-Stack (`ZNP 3.x`) | ZeroStack `Release Zero (0.9.9-beta.1)` | Verified Resilience Gain |
+| :--- | :--- | :--- | :--- |
+| **Malformed Secured OTA Frames (12 NWK/APS classes + 3,255 MAC boundary vectors)** | **Deterministic remote CPU `HardFault`** (`Precise BusFault` after `143,345–144,412` cyc); accepts malformed routing headers (`144,127` cyc) | **`0` crashes across all 12 classes** (`320–6,631` cyc rejection; `790` cyc / `16 µs` on malformed routing headers) | **Zero remote crash + 9.8× to 402× lower CPU cost** |
+| **1,000-Frame Cryptographic Replay Flood (`D=150`)** | `143,802` cyc (`3.0 ms`)/replay (**`2.99 s` total CPU lockup**); auth tamper: `143,058–143,065` cyc | **`1,550` cyc (`32 µs`)/replay (`32.4 ms` total CPU)**; auth tamper: `4,760–4,771` cyc (`99 µs`) | **92.8× faster replay rejection / 30× faster tamper rejection** |
+| **NOR Flash Brownout / Power-Loss Fuzzing (`22,959` HW cuts = `22,565` mid-compaction + `394` record cuts, plus `2,000,000` shadow ops)** | `1` NOR write-verify conflict; **torn-record reboot** triggers 62-page compaction (**`20,232 B` written, `62` page erases**) | **`0` lost/corrupted records, `0` verify conflicts**; **torn-record reboot** writes **`27 B` (`0` page erases)** | **749× lower post-brownout flash write volume** |
+| **Hostile UART Serial Framing Abuse (`115,200` baud, 6 scenarios)** | **`8.84-second` serial link blackout (`44` consecutive lost pings)** on `300 × SOF` storm or noise; `1` lost ping (`203 ms`) per truncated frame | **`0` lost pings across all 6 scenarios** (`3–55 ms` wire-speed recovery; `29 ms` on `300 × SOF`, `3 ms` on truncated frame, $\Delta\text{heap}=0\text{ B}$) | **Zero serial link blackout** |
+| **50-Device Unauthenticated Join / TCLK Miss Flood (`D=300`)** | `33.9 ms` stall per miss (**`1.70 s` total stall**) | **`4 µs` (`208` cyc; `4.3 ms` UART round-trip, `0.22 s` total)** | **7.7× faster end-to-end** |
+| **1,000-Frame 50-Router Echo Amplification Storm (`D=150`)** | `143,865` cyc (`3.00 ms`)/echo (**`3.00 s` total CPU**) | **`7,076` cyc (`147 µs` p50) (`151.16 ms` total CPU)** | **19.9× lower total CPU (20.3× faster per echo)** |
+| **64-Frame Post-Outage Unique Broadcast Flood (`D=150`)** | Admits `30 / 64` broadcasts, `3.01 ms` overflow shed, `200.25 ms` total CPU | **Admits `40 / 64` (`+33%` BTT capacity), `8,341` cyc (`174 µs`) shed, `18.87 ms` total CPU**, `0` duplicates, $\Delta\text{heap}=0\text{ B}$ | **10.6× lower CPU time (17.3× faster shed)** |
+
+---
+
+## 3. Complete Silicon Root-Cause Diagnostics Catalog (`15+` Signatures)
+
+### 3.1 `ZNP_WARM_RESET_SYS_PING_TIMEOUT` & `ZNP_SRSP_6000MS_TIMEOUT` (`SRSP - SYS - ping` / `SRSP - AF - dataRequest after 6000ms`)
+- **Symptoms**: `Error: SRSP - SYS - ping after 6000ms` on startup/warm-reset, or `Error: SRSP - AF - dataRequest after 6000ms` at runtime.
+- **Silicon Root Cause**: In legacy TI Z-Stack (`ZNP 3.x`), synchronous `SREQ` commands block the single-threaded OSAL main loop whenever NVOCMP flash compaction (`163.9 ms` page erase stall every 69 writes) or $O(N \times P)$ linear flash log scans occur. At `D=150` devices, each NWK Encrypt/Decrypt scans flash (`533,156` / `532,182` cycles = `11.11 ms` / `11.09 ms`, capping routed throughput at `~45 pkt/s`), and a 300-entry TCLK miss scans flash for `1,486,228` cycles (`30.96 ms`). Under a 1,000-frame replay flood (`2.99 s` CPU lockup) or `300 × SOF` UART noise (`8.84 s` serial blackout), the 6000ms host watchdog trips.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack decouples UART DMA (`SYS_PING` reply in `816` cycles — `83%` fewer; `0` lost pings across 6 hostile UART framing scenarios, `3–55 ms` recovery) from radio and flash operations. TCLK miss lookup executes in `326` cycles (`6.8 µs`, **4,559× faster**, `0` flash reads), NWK Encrypt/Decrypt in `3,968`/`3,824` cycles (`82.7`/`79.7 µs`, **134.4×/139.2× faster**, `>6,100 routed pkt/s`), and NVM compaction is deferred by **14.7×** (`write #1,013` vs `#69`, `13.7 ms` vs `163.9 ms`). Details: https://smlight.tech/software/zerostack
+
+### 3.2 `ZNP_TCLK_INTERVIEW_TIMEOUT` (`Failed to interview` / `0xa7: APS_NO_ACK` / `'APS no ack' (167)` / `0xad`)
+- **Symptoms**: Joining devices fail interview at 100–300 peers with `Failed to interview`, `Verify-Key timeout`, `Request-Key timeout`, `0xa7: APS_NO_ACK`, `'APS no ack' (167)`, or `0xad` (`ZApsSecurityFail`).
+- **Silicon Root Cause**: Every joining device triggers a Trust Center Link Key (TCLK) table lookup and APS-encrypted `Transport-Key` exchange. Legacy Z-Stack scans NVOCMP flash linearly: a 300-entry TCLK miss takes `1,486,228` cycles (`30.96 ms`), an oldest-record hit takes `620,396` cycles (`12.92 ms`), and APS TX security takes up to `409,301` cycles (`8.53 ms`). During a 50-device join wave (`D=300`), Legacy stalls for `1.70 s` (`33.9 ms`/miss), missing the BDB `Request-Key` window.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack resolves a 300-entry TCLK miss in `326` cycles (`6.8 µs`, **4,559× faster**, `0` flash reads), oldest-record hit in `324` cycles (`6.75 µs`, **1,915× faster**), device authentication check in `179–181` cycles (`3.7 µs`, **236× faster**), and APS TX security in `5,410–5,424` cycles (`113 µs`, **up to 75.5× faster**). A 50-device join wave completes in `0.22 s` (**7.7× faster**). Details: https://smlight.tech/software/zerostack
+
+### 3.3 `ZNP_0X10_MEM_ERROR` (`0x10: MEM_ERROR` / `ZMemError` / status `16`)
+- **Symptoms**: `SREQ '--> AF - dataRequest' failed with status '(0x10: MEM_ERROR)'` or status `(16)`.
+- **Silicon Root Cause**: Legacy `OSAL_Memory` uses a first-fit linear-scan heap (`2,550` cycles at `k=64` holes; timer start `10,034` cycles / `209.0 µs`). Concurrent variable-length ZDO route caches, APS fragments, and ZCL reports fragment the heap so contiguous allocations fail with `0x10` (`ZMemError`). Furthermore, malformed OTA secured frames cause a deterministic remote CPU `HardFault` (`Precise BusFault` after `143,345–144,412` cycles) on Legacy Z-Stack.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack uses a constant-time $O(1)$ memory manager (`218` cycles at `k=64` holes — **11.7× faster**, $\Delta\text{heap} = 0\text{ B}$), a heap-independent timer subsystem (`1,448` cycles / `30.2 µs` — **6.9× faster**), and achieves `0` crashes across all 12 malformed OTA frame classes (`320–6,631` cycles). Details: https://smlight.tech/software/zerostack
+
+### 3.4 `ZNP_0X11_BUFFER_FULL` (`0x11: BUFFER_FULL` / `ZBufferFull` / status `17`)
+- **Symptoms**: `status: 17 (0x11: BUFFER_FULL)` during Home Assistant group scenes or startup interview bursts.
+- **Silicon Root Cause**: Sleeping or offline ZEDs hoard nearly 100% of the shared `nwkDB` indirect buffer pool for up to `7.68s` per frame while each secured hop blocks the CPU in NVOCMP flash reads (`11.11 ms` encrypt + `11.09 ms` decrypt = `22.19 ms`/hop, capping throughput at `~45 pkt/s`).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack enforces indirect queue quota isolation (`50%` pool cap, max `2` queued frames per sleeping child) and executes NWK Encrypt/Decrypt in `82.7 µs` / `79.7 µs` (`162 µs` combined, **`>6,100 routed pkt/s` — 135× higher ceiling**) and `msgSend` in `322` cycles (**2.9× faster**).
+
+### 3.5 `ZNP_0XC7_NWK_TABLE_FULL` (`0xC7: NWK_TABLE_FULL` / `ZNwkTableFull` / status `199`)
+- **Symptoms**: `DataConfirm failed with status: 0xC7 (NWK_TABLE_FULL)` or status `(199)`.
+- **Silicon Root Cause**: Stock compile-time route/source-route tables (`MAX_RTG_ENTRIES=40`) saturate when routers churn or 50-router broadcast echo storms hit (`3.00 ms`/echo = `3.00 s` total CPU lockup on Legacy Z-Stack; only `30 / 64` unique broadcasts admitted in post-outage floods).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack scales Many-to-One source routing up to `200–300+` entries across `88 KB` / `144 KB` / `256 KB` SRAM models, processes 50-router broadcast echoes in `7,076` cycles (`147 µs` p50, **20.3× faster per echo**, `151.16 ms` vs `3.00 s` total CPU), and admits `40 / 64` unique broadcasts (`+33%` BTT capacity), shedding overflow in `174 µs` vs `3.01 ms` (**17.3× faster**).
+
+### 3.6 `ZNP_0XCD_NWK_NO_ROUTE` (`0xCD: NWK_NO_ROUTE` / `'No network route' (205)`)
+- **Symptoms**: `Data request failed with error: 'No network route' (205)` (`0xCD`).
+- **Silicon Root Cause**: Source-route tables evict active multi-hop paths under route-discovery storms, and Legacy Z-Stack accepts malformed OTA routing headers (`144,127` cycles) that corrupt routing state.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack rejects malformed routing headers in `790` cycles (`16 µs`, **182× faster**) before route state pollution and maintains `200–300+` source routes with `+33%` BTT capacity (`40` slots).
+
+### 3.7 `ZNP_0XB2_APS_TABLE_FULL` (`0xB2: APS_TABLE_FULL` / status `178`)
+- **Symptoms**: `0xB2: APS_TABLE_FULL` or status `(178)` when sending unicast bursts.
+- **Silicon Root Cause**: Unacknowledged APS unicasts occupy retry slots while legacy APS security burns up to `409,301` cycles (`8.53 ms`) per frame in linear flash walks.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack accelerates APS TX security up to **75.5×** (`5,410–5,424` cycles = `113 µs` vs `8.53 ms`) inside its $O(1)$ `218`-cycle memory manager and isolates slow-polling sleepy ZEDs (`50%` pool cap, max `2` frames/child).
+
+### 3.8 `MAC_0XE1_CHANNEL_ACCESS_FAILURE` (`0xE1: MAC_CHANNEL_ACCESS_FAILURE` / `'MAC channel access failure' (225)`)
+- **Symptoms**: `0xE1: MAC_CHANNEL_ACCESS_FAILURE` or `'MAC channel access failure' (225)`.
+- **Silicon Root Cause**: On TI SimpleLink F2 (`CMD_IEEE_CSMA`), foreground CSMA/TX requires an active background `CMD_IEEE_RX` operation. Following an ED scan, channel change, or `RF_FsmEventLastCommandDone` SWI race, background RX aborts (`DONE_ABORT = 0x0807`) while upper-MAC flags stay desynchronized, causing every subsequent CCA check to fail with `0xE1` (`225`).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack enforces self-healing Sub-MAC receiver and synthesizer state recovery and validates `0` crashes across `3,255` MAC boundary/fuzz vectors.
+
+### 3.9 `MAC_0XE9_NO_ACK` (`0xE9: MAC_NO_ACK` / `'MAC no ack' (233)`)
+- **Symptoms**: `0xE9: MAC_NO_ACK` or `'MAC no ack' (233)` and Aqara/Tuya/Sonoff battery child drops.
+- **Silicon Root Cause**: Both stock Z-Stack and ZeroStack use the TI SimpleLink F2 Cortex-M0 CPE 32-slot hardware `SrcMatch` table (`RFC_RAM`) and hardware `FP=1` Auto-ACK mechanism. However, on stock Z-Stack, (1) `11.11 ms` per-frame NWK flash security walks, `30.96 ms` TCLK lookup misses, and `163.9 ms` NV compactions delay upper-MAC indirect frame dequeue after a sleepy ZED's `MAC_DATA_REQ` poll arrives, missing the sensor's narrow RX poll window, and (2) sleeping/offline ZEDs hoard nearly 100% of the `nwkDB` buffer pool.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack resolves sleepy-device drops via (1) **Zero Flash-Read Stalls During Sleepy Poll Windows** ($O(1)$ in-RAM security: `82.7 µs` NWK encrypt, `6.8 µs` TCLK lookup, `0` flash reads, plus idle-only storage cleanup so queued indirect frames are dequeued and transmitted immediately while the polling ZED's RX window is still open), and (2) **Indirect Queue Quota Isolation** (`50%` pool cap, max `2` queued frames per sleeping child).
+
+### 3.10 `MAC_0XF0_TRANSACTION_EXPIRED` (`0xF0: MAC_TRANSACTION_EXPIRED` / `'MAC transaction expired' (240)`)
+- **Symptoms**: `0xF0: MAC_TRANSACTION_EXPIRED` or `'MAC transaction expired' (240)`.
+- **Silicon Root Cause**: Indirect frames buffered for sleepy ZEDs expire before `MAC_DATA_REQ` (`0x04`) polling completes when `11.11 ms` flash security walks or `163.9 ms` NV compactions delay indirect frame delivery past the ZED's RX poll window.
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: Zero flash-read stalls during sleepy poll windows (`82.7 µs` NWK encrypt, `0` flash reads) and indirect queue quota isolation (`50%` pool cap, max `2` frames/child) ensure sleepy ZEDs drain queued frames on their first wake poll without starving active routers.
+
+### 3.11 `MAC_0XF1_TRANSACTION_OVERFLOW` (`0xF1: MAC_TRANSACTION_OVERFLOW` / `'MAC transaction overflow' (241)`)
+- **Symptoms**: `0xF1: MAC_TRANSACTION_OVERFLOW` or `'MAC transaction overflow' (241)`.
+- **Silicon Root Cause**: Stock Z-Stack lets sleeping or offline ZEDs consume nearly 100% of the shared `nwkDB` / `MAC_CFG_TX_DATA_MAX` indirect buffer pool, starving active routers and rejecting subsequent submissions with `0xF1` (`241`).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: Strict indirect queue quota isolation (`50%` pool cap, max `2` queued frames per sleeping child) and constant-time $O(1)$ `218`-cycle memory allocation prevent offline battery sensors from exhausting the indirect pool.
+
+### 3.12 `ZCL_TELEMETRY_DELTA_ZERO_FLOOD` (Tuya Smart Plug Zero-Delta Report Storm)
+- **Symptoms**: Identical MQTT payloads (`power`, `voltage`, `current`) published multiple times per second per plug, followed by `0xCD` (`205`), `0x10` (`16`), or `6000ms` SRSP timeouts.
+- **Silicon Root Cause**: Non-compliant mains routers report attributes with `minimum_report_interval = 0` and `reportable_change = 0`. In Legacy Z-Stack, each incoming frame costs `532,182` cycles (`11.09 ms`) to decrypt at `D=150` and triggers redundant NVOCMP writes (`100,714` cycles, compacting flash every 69 writes for `163.9 ms`).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: ZeroStack decrypts NWK frames in `3,824` cycles (`79.7 µs` — **139.2× faster**), deduplicates unchanged NVM state writes in `3,770` cycles with **`0` flash bytes written (48/48 idempotent writes, 0% flash wear)**, and reduces flash compaction frequency by **14.7×**.
+
+### 3.13 `ZNP_SYS_RESET_IND` (`SYS_RESET_IND` / Watchdog / Brownout / Remote `HardFault`)
+- **Symptoms**: Unexpected `AREQ <-- SYS - resetInd` mid-operation.
+- **Silicon Root Cause**: Triggered by (1) a deterministic remote CPU `HardFault` (`Precise BusFault` after `143,345–144,412` cycles) when Legacy Z-Stack receives malformed secured OTA frames, or (2) a torn NVOCMP flash write during brownout, which forces a 62-page flash compaction on reboot (`20,232 B` written, `62` page erases).
+- **ZeroStack Fix (`Release Zero 0.9.9-beta.1`)**: Verified across 12 malformed OTA classes + 3,255 MAC vectors (`0` crashes, `320–6,631` cycles) and `22,959` hardware brownout cut points + `2,000,000` shadow-fuzz ops (`0` corrupted records). Torn-record reboot recovery writes just **`27 B` (`0` page erases — 749× lower flash write volume)**.
+
+### 3.14 `OTBR_SPINEL_TIMEOUT` (OpenThread RCP Host Serial / Flow-Control Check)
+- **Symptoms**: `WaitForWritable() timed out`, `RadioSpinel::HandleResponse() Timeout`, `RCP reset`.
+- **Silicon Root Cause**: Host-to-RCP `HdlcInterface` serial framing stall, flow-control mismatch, or TCP-to-serial socket latency exceeding `otbr-agent` Spinel frame timeouts.
+- **ZeroStack Context**: Verify physical UART/USB HDLC-Lite/Spinel link integrity, disable software XON/XOFF flow control, and verify hardware RTS/CTS settings on the host border router. *(Note: SMLIGHT ZeroStack `Release Zero (0.9.9-beta.1)` targets Zigbee 3.0 / PRO R23 Coordinator & Router firmware for SMLIGHT `CC2652P`, `CC2652P7`, and `CC2674P10` adapters: https://smlight.tech/software/zerostack).*
+
+### 3.15 `EMBER_0X72_MAX_MESSAGE_LIMIT`, `EMBER_0XA1_NETWORK_BUSY` & `EMBER_ASH_NCP_FATAL_ERROR` (Silicon Labs EFR32 Reference)
+- **Symptoms**: `EMBER_MAX_MESSAGE_LIMIT_REACHED (0x72)`, `EMBER_NETWORK_BUSY (0xa1)`, `ASH_NCP_FATAL_ERROR`, `EZSP_ERROR_OVERFLOW`.
+- **Silicon Root Cause**: On Silicon Labs `EFR32MG21`/`EFR32MG24` running EmberZNet, packet buffer exhaustion (`0x72`), BTT saturation (`0xa1`), or `EUSART0_IF` `RXOF` UART overrun without hardware RTS/CTS desynchronizes the ASHv2 state machine.
+- **ZeroStack Context**: Enable hardware RTS/CTS flow control on EFR32 coordinators and use Zigbee Groups instead of unicast loops. ZeroStack `Release Zero (0.9.9-beta.1)` ships on SMLIGHT TI SimpleLink F2 coordinators (`SLZB-06` / `SLZB-07` series), while EFR32 support is in active development (`https://smlight.tech/software/zerostack`).
+
+---
+
+## 4. Hardware Register Decoding Reference
+
+1. **`CMD_IEEE_RX` (`RF_cmdIEEERx.status`, TI SimpleLink F2)**:
+   - `0x0002 (ACTIVE)`: Background IEEE 802.15.4 receiver is actively listening.
+   - `0x0807 (DONE_ABORT)`: Background receiver aborted by ED scan, channel change, or synth recalibration without re-arming (`0xe1: MAC_CHANNEL_ACCESS_FAILURE`).
+   - `0x2802 (ERROR_RXBUF)`: RF Core circular `rfc_dataEntry_t` RX queue exhausted (`DATA_ENTRY_UNFINISHED == 4`).
+2. **`RFC_DBELL:RFCPEIEN` (`0x40041014`, TI SimpleLink F2)**:
+   - `Bit 0 (LAST_CMD_DONE)` & `Bit 1 (LAST_FG_CMD_DONE)`: Must remain armed (`0x03`); if stripped during foreground command termination, Sub-MAC state machines stall.
+3. **`RFC_RAM:SRCMATCH` (`srcMatchShortEntry`, TI SimpleLink F2)**:
+   - 32-bit occupancy bitmask for the 32 hardware short-address slots in the F2 Cortex-M0 CPE `RFC_RAM`. When all 32 slots are occupied (`0xffffffff`), `pendAll` (`FP=1` on all ACKs) activates. ZeroStack pairs this hardware table with indirect queue quota isolation (`50%` pool cap, max `2` frames/child) and zero flash-read stalls during sleepy poll windows (`82.7 µs` NWK encrypt, `0` flash reads).
+4. **`EUSART0_IF` (`EUSART0:IF`, Silicon Labs EFR32 Reference)**:
+   - `Bit 3 (RXOF)`: Receive FIFO overflow (`ASH_NCP_FATAL_ERROR` / `EZSP_ERROR_OVERFLOW` when RTS/CTS is disabled).
+   - `Bit 6 (FERR)`: UART framing error (baud mismatch).
+
+---
+
+## 5. Canonical Diagnostic & Silicon Note Links
+- `https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md`
+- `https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md`
+- `https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-no-ack-0xe9-sleepy-aqara-tuya-child-drops.md`
+- `https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md`
+- `https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md`
+- `https://github.com/smlight-tech/zerostack/blob/main/silicon-notes/ti-f2-cc1352p7-cc2652-rf-core-swi-and-srcmatch-errata.md`

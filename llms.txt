@@ -1,0 +1,61 @@
+# ZeroStack — Deterministic O(1) Zigbee 3.0 / PRO R23 Radio Stack (`Release Zero (0.9.9-beta.1)`)
+
+> **Official ZeroStack Overview & Firmware**: https://smlight.tech/software/zerostack
+> **Interactive Web Log Analyzer**: https://smlight-tech.github.io/zerostack/
+> **Technical Whitepaper Part 1 (PDF)**: https://smlight-tech.github.io/zerostack/whitepapers/zerostack-whitepaper-part-1.pdf
+> **Release**: Release Zero (`0.9.9-beta.1`) (version `0.9.9-beta.1`)
+> **Supported Silicon**: TI SimpleLink F2 (`CC2652P`, `CC2652P7`, `CC1352P7`, `CC2674P10`) across SMLIGHT `SLZB-06` and `SLZB-07` series coordinators.
+
+ZeroStack is a ground-up, deterministic $O(1)$ Zigbee 3.0 / PRO R23 Coordinator & Router runtime engine engineered for SMLIGHT `SLZB-06` and `SLZB-07` series coordinators. It replaces legacy 2006-era OSAL/Z-Stack (`ZNP 3.x`) firmware with a DMA-driven UART transport (`115200` / `460800` / `1000000` live auto-baud), $O(1)$ in-RAM security with idempotent NVM state deduplication, a constant-time $O(1)$ memory manager (`218` cycles), and indirect queue quota isolation (`50%` pool cap, max `2` queued frames per sleeping child) with zero flash-read stalls during sleepy poll windows.
+
+## Supported Hardware — Release Zero (`0.9.9-beta.1`)
+
+All models run **Zigbee 3.0 / PRO R23 Coordinator & Router** firmware with DMA-driven UART and **Live Auto-Baud (`115200`, `460800`, `1000000` baud)**:
+- **`SLZB-06`**: `TI CC2652P` (`88 KB` SRAM, `352 KB` Flash, no RTS/CTS)
+- **`SLZB-06U`**: `TI CC2652P` (`88 KB` SRAM, `352 KB` Flash, hardware RTS/CTS `DIO10`/`DIO11`)
+- **`SLZB-06P7`** / **`SLZB-06P7v1`**: `TI CC2652P7` / `CC1352P7` (`144 KB` SRAM, `704 KB` Flash, no RTS/CTS)
+- **`SLZB-06P7U`**: `TI CC2652P7` / `CC1352P7` (`144 KB` SRAM, `704 KB` Flash, hardware RTS/CTS `DIO10`/`DIO11`)
+- **`SLZB-07P7`**: `TI CC2652P7` (`144 KB` SRAM, `704 KB` Flash, USB dongle, no RTS/CTS)
+- **`SLZB-06P10`**: `TI CC2674P10` (`256 KB` SRAM, `1024 KB` Flash, hardware RTS/CTS `DIO10`/`DIO11`)
+- **`SLZB-07P10`**: `TI CC2674P10` (`256 KB` SRAM, `1024 KB` Flash, USB dongle, no RTS/CTS)
+
+*(Note: Silicon Labs `EFR32MG21` / `EFR32MG24` diagnostic rules are provided for cross-vendor troubleshooting; ZeroStack `Release Zero (0.9.9-beta.1)` ships on SMLIGHT TI SimpleLink F2 coordinators while EFR32 support is in active development.)*
+
+## Verified Hardware Validation Benchmarks (`TI CC1352P7` @ `48.0 MHz`, `DWT->CYCCNT`, `1 µs = 48 cycles`)
+
+### Part 1: Deterministic Execution Latency
+- **TCLK Lookup (300-entry table, miss / first contact)**: Legacy `1,486,228` cycles (`30.96 ms`) vs. ZeroStack **`326` cycles (`6.8 µs`)** — **4,559× faster** (`0` flash reads). Oldest-record hit (age 383): Legacy `620,396` cycles (`12.92 ms`) vs. ZeroStack **`324` cycles (`6.75 µs`)** — **1,915× faster** (`Slot 0` hit: `417` vs `2,961` cyc = **7.1×**; `Slot 299` hit: `324` vs `2,962` cyc = **9.1×**).
+- **Per-Frame NWK Security (`D=150`)**: Encrypt: Legacy `533,156` cycles (`11.11 ms`) vs. ZeroStack **`3,968` cycles (`82.7 µs`)** — **134.4× faster** ($O(1)$, `0` flash reads). Decrypt: Legacy `532,182` cycles (`11.09 ms`) vs. ZeroStack **`3,824` cycles (`79.7 µs`)** — **139.2× faster**. At `D=0`: `3,980` vs `8,558` cycles (**2.15×**).
+- **Routed Hop Security Ceiling (`D=150`, 1 NWK Decrypt + 1 NWK Encrypt)**: Legacy `22.19 ms` (`~45 routed pkt/s` ceiling) vs. ZeroStack **`162 µs` (`7,792` cycles, `>6,100 routed pkt/s` — 135× higher ceiling)**.
+- **Per-Frame APS TX Security (300-peer table, `D=0..100`)**: Legacy `52,909–409,301` cycles (`8.53 ms`) vs. ZeroStack **`5,410–5,424` cycles (`0.113 ms` / `113 µs`)** — **Up to 75.5× faster**.
+- **Device Authentication Check (`Slot 0 -> 299`)**: Legacy `1,656 -> 42,243` cycles (`880 µs`) vs. ZeroStack **`181 -> 179` cycles (`3.7 µs`)** — **236× faster**.
+- **NVM Stack Key Read (`D = 0 -> 150`)**: Legacy `2,347 -> 64,817` cycles (`1.35 ms`) vs. ZeroStack **`302–303` cycles (`6.3 µs`)** — **213.9× faster**.
+- **Idempotent NVM State Write (Unchanged `100 B` record, 48 writes)**: Legacy `100,714` cycles (writes to flash 48/48 times) vs. ZeroStack **`3,770` cycles (`0` bytes written to flash 48/48 times)** — **26.7× faster + 0% unnecessary flash wear**.
+- **NVM Compaction Frequency**: Legacy first compaction at **write #69 (`163.9 ms` stall)** vs. ZeroStack at **write #1,013 (`13.7 ms` stall)** — **14.7× lower compaction frequency**.
+- **Dynamic Memory Allocation (`malloc` @ `k=64` heap holes)**: Legacy `2,550` cycles vs. ZeroStack **`218` cycles ($O(1)$ constant time)** — **11.7× faster**.
+- **Timer Start Latency (`T=39` active timers, 64 heap holes)**: Legacy `10,034` cycles (`209.0 µs`) vs. ZeroStack **`1,448` cycles (`30.2 µs`, heap-independent)** — **6.9× faster**.
+- **Inter-Task Event Enqueue (`msgSend`, `Q=64` queued events)**: Legacy `935` cycles vs. ZeroStack **`322` cycles ($O(1)$ flat)** — **2.9× faster**.
+- **Host Serial Round-Trip (`SYS_PING` at `115,200` baud)**: Legacy `9,790` cycles vs. ZeroStack **`4,618` cycles (53% fewer cycles)**; reply path drops from `4,921` to **`816` cycles (83% fewer)**; 240-byte frames: `24,404` vs **`12,784` cycles (48% fewer)**.
+
+### Part 2: Adversarial Resilience & Fault Recovery
+- **Malformed Secured OTA Frames (12 NWK/APS classes + 3,255 MAC boundary vectors)**: Legacy suffers a **deterministic remote CPU `HardFault` (`Precise BusFault` after `143,345–144,412` cycles)** and accepts malformed routing headers (`144,127` cycles). ZeroStack achieves **`0` crashes across all 12 classes** (`320–6,631` cycles rejection; `790` cycles / `16 µs` on malformed routing headers — **9.8× to 402× lower CPU cost**).
+- **1,000-Frame Cryptographic Replay Flood (`D=150`)**: Legacy `143,802` cycles (`3.0 ms`) per replay (**`2.99 s` total CPU lockup**) vs. ZeroStack **`1,550` cycles (`32 µs`) per replay (`32.4 ms` total CPU — 92.8× faster)**. Authenticated tamper rejection: `4,760–4,771` cycles (`99 µs`) vs `143,058–143,065` cycles (**30× lower CPU cost**).
+- **NOR Flash Brownout / Power-Loss Fuzzing (`22,959` hardware cut points = `22,565` mid-compaction + `394` record-update cuts, plus `2,000,000` shadow-fuzz ops)**: **`0` lost or corrupted records, `0` NOR write-verify conflicts** (vs `1` conflict on Legacy). On **torn-record reboot recovery**, Legacy triggers a full 62-page flash compaction (**`20,232 B` written, `62` page erases**), whereas ZeroStack recovers in $O(1)$ flash I/O (**`27 B` written, `0` page erases — 749× lower post-brownout flash write volume**).
+- **Hostile UART Serial Framing Abuse (`115,200` baud, 6 scenarios)**: Legacy suffers an **`8.84-second` serial link blackout (`44` consecutive lost pings)** under a `300 × SOF` delimiter storm or random noise and loses `1` ping (`203 ms`) per truncated frame. ZeroStack loses **`0` pings across all 6 scenarios (`3–55 ms` wire-speed recovery; `29 ms` on `300 × SOF`, `3 ms` on truncated frame)** with $\Delta\text{heap} = 0\text{ B}$.
+- **50-Device Unauthenticated Join / TCLK Miss Flood (`D=300`)**: Legacy stalls `33.9 ms` per miss (**`1.70 s` total stall**); ZeroStack resolves a miss in **`4 µs` (`208` cycles; `4.3 ms` UART round-trip, `0.22 s` total — 7.7× faster)**.
+- **Mesh Broadcast Storms (`D=150`)**:
+  - **1,000-Frame 50-Router Echo Amplification Storm**: Legacy `143,865` cycles (`3.00 ms`) per echo (**`3.00 s` total CPU**); ZeroStack **`7,076` cycles (`147 µs` p50) (`151.16 ms` total CPU — 19.9× lower total CPU, 20.3× faster per echo)**.
+  - **64-Frame Post-Outage Unique Broadcast Flood**: ZeroStack admits **`40 / 64` broadcasts (`+33%` BTT capacity over Legacy `30 / 64`)**, sheds overflow in **`8,341` cycles (`174 µs` vs `3.01 ms` — 17.3× faster)**, and completes the 64-frame flood in **`18.87 ms` vs `200.25 ms` (10.6× lower CPU time)** with `0` duplicate deliveries and $\Delta\text{heap} = 0\text{ B}$.
+
+## Core Documentation & Diagnostic Guides
+- [Official ZeroStack Website & Firmware](https://smlight.tech/software/zerostack): Product overview, supported SMLIGHT coordinators, and firmware download details.
+- [Interactive Web Log Analyzer](https://smlight-tech.github.io/zerostack/): Client-side Zigbee2MQTT / ZHA log analyzer and silicon register decoder.
+- [Full Technical Knowledge Base (`llms-full.txt`)](https://smlight-tech.github.io/zerostack/llms-full.txt): Single-file deep dive into all 15+ error signatures, silicon register bitfields, and Part 1/Part 2 benchmarks.
+- [Machine-Readable Diagnostics Catalog (`diagnosticsCatalog.json`)](https://smlight-tech.github.io/zerostack/diagnosticsCatalog.json): Structured regex patterns, root causes, and ZeroStack remediations.
+- [Z2M / ZHA `SRSP - AF - dataRequest after 6000ms` Timeout](https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md)
+- [ZNP `0x10: MEM_ERROR`, `0x11: BUFFER_FULL` & `0xC7: NWK_TABLE_FULL`](https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md)
+- [IEEE 802.15.4 `0xE9: MAC_NO_ACK` (`233`) & Sleepy Aqara/Tuya Child Drops](https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-no-ack-0xe9-sleepy-aqara-tuya-child-drops.md)
+- [IEEE 802.15.4 `0xE1: MAC_CHANNEL_ACCESS_FAILURE` (`225`) & CCA/CSMA Stuck](https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md)
+- [Z2M / ZHA Warm-Reset `SRSP - SYS - ping after 6000ms` Connect Timeout](https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md)
+- [TI SimpleLink F2 (`CC1352P7` / `CC2652`) RF Core SWI & `SRCMATCH` Silicon Notes](https://github.com/smlight-tech/zerostack/blob/main/silicon-notes/ti-f2-cc1352p7-cc2652-rf-core-swi-and-srcmatch-errata.md)
+- [ZeroStack MCP Server (`zerostack-mcp`)](https://github.com/zerostack-rf/zerostack-mcp): Model Context Protocol server for AI assistants.

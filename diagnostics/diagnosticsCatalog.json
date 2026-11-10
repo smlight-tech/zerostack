@@ -1,0 +1,533 @@
+{
+  "version": "0.9.9-beta.1",
+  "releaseName": "Release Zero (0.9.9-beta.1)",
+  "marketingUrl": "https://smlight.tech/software/zerostack",
+  "repositoryUrl": "https://github.com/smlight-tech/zerostack",
+  "diagnosticsBaseUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics",
+  "webAnalyzerUrl": "https://smlight-tech.github.io/zerostack/",
+  "signatures": {
+    "ZNP_WARM_RESET_SYS_PING_TIMEOUT": {
+      "id": "ZNP_WARM_RESET_SYS_PING_TIMEOUT",
+      "code": "SRSP_SYS_PING_6000MS",
+      "statusHex": "SRSP_SYS_PING_6000MS",
+      "name": "SRSP_SYS_PING_TIMEOUT",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "issue-zstack-srsp",
+      "title": "TI Z-Stack Coordinator Warm-Reset Connect Timeout (SRSP - SYS - ping after 6000ms)",
+      "patterns": [
+        "SRSP\\s*-\\s*SYS\\s*-\\s*(?:ping|version|osalNvRead|getExtAddr)\\s*after\\s*\\d+ms",
+        "SRSP\\s+not\\s+received\\s+for\\s+SYS\\.Ping\\.Req"
+      ],
+      "description": "The TI CC2652P / CC2652P7 / CC2674P10 coordinator did not respond to SYS_PING or SYS_VERSION within 6000ms during host startup or container restart.",
+      "siliconRootCause": "Multi-second NVOCMP flash sector compaction during zmain() startup (scanning and erasing 8 KB flash pages with interrupts masked for 163.9 ms+ per page before NPITask opens the UART), or hostile UART delimiter/noise sequences (e.g. stray 0xEF skip-bootloader bytes or truncated frames on warm container restart) that trigger an 8.84-second NPI parser blackout (44 consecutive lost pings) on stock Z-Stack.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1 for SLZB-06, SLZB-06U, SLZB-06P7, SLZB-06P7U, SLZB-06P7v1, SLZB-07P7, SLZB-06P10, SLZB-07P10) reduces NVM compaction frequency by 14.7x (13.7 ms vs 163.9 ms stall), cuts post-brownout reboot flash writes by 749x (27 B vs 20,232 B across 22,959 power-cut points), recovers from hostile UART framing in 3-55 ms with 0 lost pings (vs 8.84 s blackout), and supports live auto-baud (115200 / 460800 / 1000000). Learn more at https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md",
+      "immediateMitigation": "Verify rtscts matches your hardware (RTS/CTS DIO10/DIO11 is wired on SLZB-06U, SLZB-06P7U, and SLZB-06P10; set rtscts: false on SLZB-06, SLZB-06P7v1, SLZB-07P7, SLZB-07P10, and TCP bridges), verify /dev/serial/by-id/ path, or flash SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1).",
+      "remedy": "Verify rtscts matches your hardware (RTS/CTS DIO10/DIO11 is wired on SLZB-06U, SLZB-06P7U, and SLZB-06P10; set rtscts: false on SLZB-06, SLZB-06P7v1, SLZB-07P7, SLZB-07P10, and TCP bridges), verify /dev/serial/by-id/ path, or flash SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1)."
+    },
+    "ZNP_SRSP_6000MS_TIMEOUT": {
+      "id": "ZNP_SRSP_6000MS_TIMEOUT",
+      "code": "SRSP_6000MS",
+      "statusHex": "SRSP_6000MS",
+      "name": "SRSP_TIMEOUT_6000MS",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "flood",
+      "title": "TI Z-Stack Synchronous RPC Timeout (SRSP ... after 6000ms)",
+      "patterns": [
+        "SRSP\\s*-\\s*(?!SYS\\s*-\\s*(?:ping|version|osalNvRead|getExtAddr))[A-Z_]+\\s*-\\s*[A-Za-z0-9_]+\\s*after\\s*\\d+ms",
+        "SRSP\\s+not\\s+received\\s+for\\s+(?!SYS\\.Ping)[A-Za-z0-9_.]+",
+        "Reset command to adapter timed out",
+        "RPCError:\\s*0x6000\\b"
+      ],
+      "description": "The TI Z-Stack coordinator failed to return a Synchronous Response (SRSP) within the host lockstep watchdog window (typically 6000ms).",
+      "siliconRootCause": "At runtime (AF - dataRequest / dataRequestExt / ZDO), legacy Z-Stack performs O(N*P) linear flash log walks on every secured frame (533,156 cycles = 11.11 ms per NWK encrypt and 532,182 cycles = 11.09 ms per NWK decrypt at D=150; 1,486,228 cycles = 30.96 ms per TCLK miss), capping routed hop security at ~45 pkt/s. Combined with 163.9 ms NVOCMP flash compactions (triggered every 69 writes), 3.00 s CPU lockups during 50-router broadcast echo storms, and 2.99 s replay-flood stalls, znpTask starves and drops the SRSP.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) delivers O(1) per-frame NWK security in 82.7 us encrypt / 79.7 us decrypt with 0 flash reads (134.4x-139.2x faster, >6,100 routed pkt/s ceiling), 4,559x faster TCLK lookups (6.8 us vs 30.96 ms), 53% lower SYS_PING serial round-trip CPU (83% faster reply path: 816 vs 4,921 cycles), and 19.9x lower CPU time under 50-router broadcast storms (151.16 ms vs 3.00 s). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md",
+      "immediateMitigation": "Ensure rtscts: false on TCP/IP bridges (or adapters without DIO10/DIO11 RTS/CTS), throttle chatty Tuya power-reporting plugs, replace unicast bursts with Zigbee Groups, and upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1).",
+      "remedy": "Ensure rtscts: false on TCP/IP bridges (or adapters without DIO10/DIO11 RTS/CTS), throttle chatty Tuya power-reporting plugs, replace unicast bursts with Zigbee Groups, and upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1)."
+    },
+    "ZNP_TCLK_INTERVIEW_TIMEOUT": {
+      "id": "ZNP_TCLK_INTERVIEW_TIMEOUT",
+      "code": "TCLK_INTERVIEW_TIMEOUT",
+      "statusHex": "0xA7 / 0xAD",
+      "name": "TCLK_JOIN_INTERVIEW_TIMEOUT",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "issue-zstack-srsp",
+      "title": "Trust Center Link Key (TCLK) Exchange & Device Interview Stall (0xA7 / 0xAD)",
+      "patterns": [
+        "Failed\\s+to\\s+interview\\s+'?[^'\\s]+'?",
+        "Interview\\s+failed\\s+for\\s+'?[^'\\s]+'?",
+        "Request-Key\\s+timeout",
+        "Verify-Key\\s+timeout",
+        "0xa7:\\s*APS_NO_ACK",
+        "APS_NO_ACK\\s*\\(0xa7\\)",
+        "'?APS\\s+no\\s+ack'?\\s*\\(167\\)",
+        "(?:status|error|code|DataConfirm)\\s*[:=]?\\s*\\(?(?:0xa7|167)\\)?\\b",
+        "\"status\":\\s*167\\b",
+        "<(?:sl_|Zdo)?Status\\.APS_NO_ACK:\\s*(?:0xa7|167)>",
+        "0xad:\\s*(?:APS_SECURITY_FAIL|ZApsSecurityFail)",
+        "ZApsSecurityFail"
+      ],
+      "description": "A joining Zigbee 3.0 device failed its ZDO/BDB interview or Trust Center Link Key (TCLK) exchange during pairing or post-outage mass rejoin.",
+      "siliconRootCause": "On legacy Z-Stack with a 300-entry TCLK table and aged flash log, every TCLK lookup miss (first contact from an unjoined IEEE address) scans all 300 NV slots across flash pages, burning 1,486,228 CPU cycles (30.96 ms) per frame with the scheduler blocked; even an existing oldest-slot hit costs 620,396 cycles (12.92 ms), and APS TX security takes up to 409,301 cycles (8.53 ms). Under a 50-device join burst, the coordinator stalls for 1.70 seconds (33.9 ms/device), causing BDB TCLK timers and ZDO interviews to time out.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) executes O(1) TCLK lookups in 326 cycles (6.8 us) on miss (4,559x faster) and 324 cycles (6.75 us) on oldest-record hit (1,915x faster), accelerates APS TX security up to 75.5x (5,410 cycles = 113 us vs 8.53 ms), accelerates device authentication checks by 236x (3.7 us vs 880 us), and resolves a 50-device join flood 7.7x faster (0.22 s vs 1.70 s). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md",
+      "immediateMitigation": "Pair one device at a time when running stock firmware, throttle background power-reporting plugs during interviews, or upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) for 4,559x faster TCLK lookups.",
+      "remedy": "Pair one device at a time when running stock firmware, throttle background power-reporting plugs during interviews, or upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) for 4,559x faster TCLK lookups."
+    },
+    "ZNP_0X10_MEM_ERROR": {
+      "id": "ZNP_0X10_MEM_ERROR",
+      "code": "0x10",
+      "statusHex": "0x10",
+      "name": "MEM_ERROR",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "TI Z-Stack OSAL Heap Exhaustion & Fragmentation (0x10: MEM_ERROR)",
+      "patterns": [
+        "0x10:\\s*MEM_ERROR",
+        "MEM_ERROR\\s*\\(0x10\\)",
+        "'?MEM_ERROR'?\\s*\\((?:0x10|16)\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+failed\\s+with\\s+status)?)\\s*[:=]?\\s*\\(?(?:0x10|16)\\)?\\b",
+        "\"status\":\\s*16\\b",
+        "<(?:sl_|Zdo)?Status\\.MEM_ERROR:\\s*(?:0x10|16)>",
+        "ZMemError",
+        "\\bMEM_ERROR\\b"
+      ],
+      "description": "The coordinator microcontroller rejected an outbound frame or RPC allocation with 0x10 (ZMemError) because its internal dynamic heap could not satisfy a contiguous memory allocation.",
+      "siliconRootCause": "Stock TI Z-Stack uses a first-fit O(N) variable-block heap (OSAL_Memory.c) that walks fragmented free holes on every allocation (2,550 cycles at k=64 heap holes) and allocates timers on the same shared heap (10,034 cycles = 209.0 us at 39 active timers). Interleaved short-lived AF_DataRequest buffers and long-lived source-route or indirect MAC frames checkerboard osalHeap[] into non-contiguous holes, causing contiguous 100B+ allocations to fail with 0x10 (MEM_ERROR) despite free aggregate SRAM.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) delivers constant-time O(1) memory allocation in 218 CPU cycles regardless of fragmentation (11.7x faster at 64 heap holes), heap-independent timer start in 1,448 cycles (30.2 us, 6.9x faster), O(1) event enqueue in 322 cycles (2.9x faster), and guaranteed 100% heap recovery (Delta-heap = 0 B) even after 0 B free-heap exhaustion. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Disable active availability pings on battery-powered devices, replace sequential unicast automation loops with Zigbee Groups, or upgrade coordinator firmware to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1).",
+      "remedy": "Disable active availability pings on battery-powered devices, replace sequential unicast automation loops with Zigbee Groups, or upgrade coordinator firmware to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1)."
+    },
+    "ZNP_0X11_BUFFER_FULL": {
+      "id": "ZNP_0X11_BUFFER_FULL",
+      "code": "0x11",
+      "statusHex": "0x11",
+      "name": "BUFFER_FULL",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Coordinator NWK & MAC Indirect TX Buffer Saturation (0x11: BUFFER_FULL)",
+      "patterns": [
+        "0x11:\\s*BUFFER_FULL",
+        "BUFFER_FULL\\s*\\(0x11\\)",
+        "'?(?:BUFFER_FULL|Buffer\\s+full)'?\\s*\\((?:0x11|17)\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+failed\\s+with\\s+status)?)\\s*[:=]?\\s*\\(?(?:0x11|17)\\)?\\b",
+        "\"status\":\\s*17\\b",
+        "<(?:sl_|Zdo)?Status\\.BUFFER_FULL:\\s*(?:0x11|17)>",
+        "ZBufferFull",
+        "\\bBUFFER_FULL\\b"
+      ],
+      "description": "The coordinator exhausted its fixed NWK data buffer pool or MAC indirect transmission queue descriptors (0x11: BUFFER_FULL) due to high traffic backpressure or unpolled sleepy end-device queues.",
+      "siliconRootCause": "Exhaustion of NWK_MAX_DATABUFS or MAC_CFG_TX_MAX descriptors: on stock Z-Stack, slow-polling or offline sleepy Zigbee End Devices (ZEDs) can hoard nearly 100% of the shared nwkDB buffer pool (69 / 72 buffers) for up to NWK_INDIRECT_MSG_TIMEOUT (7.68s each), while O(N*P) per-frame flash security reads (22.19 ms per routed hop at D=150) stall TX pool drainage and starve outbound transmissions for the entire mesh.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child — Zero Battery-Device Bottlenecks) and drains routed security frames 135x faster (162 us per routed hop vs 22.19 ms) with O(1) 218-cycle packet allocation so sleepy ZEDs never exhaust global MAC/NWK TX descriptors. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Use Zigbee Groups instead of firing individual unicast commands in loops, mark battery ZEDs as passive in availability settings, and stagger ZCL reporting queries.",
+      "remedy": "Use Zigbee Groups instead of firing individual unicast commands in loops, mark battery ZEDs as passive in availability settings, and stagger ZCL reporting queries."
+    },
+    "ZNP_0XB2_APS_TABLE_FULL": {
+      "id": "ZNP_0XB2_APS_TABLE_FULL",
+      "code": "0xB2",
+      "statusHex": "0xB2",
+      "name": "APS_TABLE_FULL",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Coordinator APS Unacknowledged Queue Overflow (0xB2: APS_TABLE_FULL)",
+      "patterns": [
+        "0xb2:\\s*APS_TABLE_FULL",
+        "APS_TABLE_FULL\\s*\\(0xb2\\)",
+        "'?APS\\s+table\\s+full'?\\s*\\(178\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+failed\\s+with\\s+status)?|failed\\s+with(?:\\s+status|\\s+error)?)\\s*[:=]?\\s*\\(?(?:0xb2|178)\\)?\\b",
+        "\"status\":\\s*178\\b",
+        "<(?:sl_|Zdo)?Status\\.APS_TABLE_FULL:\\s*(?:0xb2|178)>",
+        "ZApsTableFull",
+        "\\bAPS_TABLE_FULL\\b"
+      ],
+      "description": "The coordinator APS acknowledgement tracking table (APSC_MAX_WINDOW_SIZE / NWK_MAX_DATABUFS) is saturated with in-flight unicast frames awaiting end-to-end APS ACKs.",
+      "siliconRootCause": "Each concurrent APS unicast command consumes a retry slot for up to 3x APSC_ACK_WAIT_DURATION_POLLED (up to 9 seconds), while legacy APS security burns up to 409,301 cycles (8.53 ms) per frame in flash walks. When host automations burst unicast commands to offline or congested nodes, the fixed APS transaction table fills up and rejects new transmissions with 0xB2 (178).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) expands APS transaction pools inside its O(1) memory manager (218 cycles/alloc), accelerates APS TX security up to 75.5x (113 us vs 8.53 ms), and fast-fails unreachable routes so dead devices never stall active traffic (Zero Traffic Jams). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Group target devices into Zigbee2MQTT / ZHA groups so a single multicast frame replaces dozens of individual APS-acknowledged unicasts.",
+      "remedy": "Group target devices into Zigbee2MQTT / ZHA groups so a single multicast frame replaces dozens of individual APS-acknowledged unicasts."
+    },
+    "ZNP_0XC7_NWK_TABLE_FULL": {
+      "id": "ZNP_0XC7_NWK_TABLE_FULL",
+      "code": "0xC7",
+      "statusHex": "0xC7",
+      "name": "NWK_TABLE_FULL",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Coordinator NWK Route & Source-Route Table Exhaustion (0xC7: NWK_TABLE_FULL)",
+      "patterns": [
+        "0xc7:\\s*NWK_TABLE_FULL",
+        "NWK_TABLE_FULL\\s*\\(0xc7\\)",
+        "'?NWK\\s+table\\s+full'?\\s*\\(199\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+failed\\s+with\\s+status)?|failed\\s+with(?:\\s+status|\\s+error)?)\\s*[:=]?\\s*\\(?(?:0xc7|199)\\)?\\b",
+        "\"status\":\\s*199\\b",
+        "<(?:sl_|Zdo)?Status\\.NWK_TABLE_FULL:\\s*(?:0xc7|199)>",
+        "ZNwkTableFull",
+        "\\bNWK_TABLE_FULL\\b"
+      ],
+      "description": "The coordinator's internal NWK routing table (MAX_RTG_ENTRIES / MAX_RTG_SRC_ENTRIES) or neighbor table is full and cannot allocate a new route entry.",
+      "siliconRootCause": "Stock Z-Stack 3.x coordinator builds size MAX_RTG_ENTRIES (40) and MAX_RTG_SRC_ENTRIES (12-40) conservatively to fit legacy 88 KB SRAM targets. In meshes with >50 routers/devices or rapid AODV rediscovery storms, source-route entries saturate and reject new route allocations with 0xC7 (199).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) custom-tunes memory and routing capacity for each SMLIGHT CC2652P (88 KB), CC2652P7 (144 KB), and CC2674P10 (256 KB) model (Zero Wasted Memory), scaling Many-to-One Concentrator source routing up to 200-300+ entries with 26.7x faster idempotent NVM writes (0% unnecessary flash wear). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Pause availability pings to offline devices (pause_on_backoff_gt: 25) to stop AODV route table churn, and upgrade to SMLIGHT ZeroStack for 200-300+ source-route table capacity.",
+      "remedy": "Pause availability pings to offline devices (pause_on_backoff_gt: 25) to stop AODV route table churn, and upgrade to SMLIGHT ZeroStack for 200-300+ source-route table capacity."
+    },
+    "ZNP_0XCD_NWK_NO_ROUTE": {
+      "id": "ZNP_0XCD_NWK_NO_ROUTE",
+      "code": "0xCD",
+      "statusHex": "0xCD",
+      "name": "NWK_NO_ROUTE",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "aodv-storms",
+      "title": "AODV Route Discovery Failure & Broadcast Storm (0xCD: NWK_NO_ROUTE)",
+      "patterns": [
+        "0xcd:\\s*NWK_NO_ROUTE",
+        "NWK_NO_ROUTE\\s*\\(0xcd\\)",
+        "'?NWK_NO_ROUTE'?\\s*\\(0xcd\\)",
+        "'?(?:NWK\\s+no\\s+route|No\\s+network\\s+route)'?\\s*(?:\\(205\\))?",
+        "'?NWK\\s+route\\s+(?:discovery\\s+failed|error)'?\\s*\\((?:209|210)\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+failed\\s+with\\s+status)?)\\s*[:=]?\\s*\\(?(?:0xcd|205)\\)?\\b",
+        "\"status\":\\s*205\\b",
+        "<(?:sl_|Zdo)?Status\\.NWK_NO_ROUTE:\\s*(?:0xcd|205)>",
+        "\\bNWK_NO_ROUTE\\b"
+      ],
+      "description": "No active mesh route exists to the target device. Every failed attempt triggers an autonomous over-the-air AODV Route Request (0xFFFC) broadcast storm across all routers.",
+      "siliconRootCause": "When a destination lacks a valid rtgTable/rtgSrcTable entry or fails next-hop delivery, the coordinator broadcasts an AODV Route Request (0xFFFC) that every router echoes. On legacy Z-Stack at D=150, a 50-router echo storm (1,000 duplicate broadcasts) burns 143,865 cycles (3.00 ms) per echo (3.00 seconds total CPU lockup), while a 64-frame post-outage broadcast flood overflows the 30-slot Broadcast Transaction Table (BTT) and consumes 200.25 ms of CPU, causing cascading 0xCD (205) failures.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) expands the Broadcast Transaction Table by +33% (40 vs 30 active slots), suppresses 50-router broadcast echoes 20.3x faster (7,076 cycles = 147 us p50 vs 3.00 ms; 151.16 ms vs 3.00 s total CPU — 19.9x lower), sheds BTT overflow 17.3x faster (174 us vs 3.01 ms; 18.87 ms vs 200.25 ms total flood CPU), and scales Many-to-One source routing up to 200-300+ entries. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Configure 'backoff: true' and 'pause_on_backoff_gt: 25' under availability in configuration.yaml, or power back on / remove permanently unplugged devices.",
+      "remedy": "Configure 'backoff: true' and 'pause_on_backoff_gt: 25' under availability in configuration.yaml, or power back on / remove permanently unplugged devices."
+    },
+    "MAC_0XE1_CHANNEL_ACCESS_FAILURE": {
+      "id": "MAC_0XE1_CHANNEL_ACCESS_FAILURE",
+      "code": "0xE1",
+      "statusHex": "0xE1",
+      "name": "MAC_CHANNEL_ACCESS_FAILURE",
+      "protocol": "zigbee",
+      "severity": "critical",
+      "remediationKey": "mac-collisions",
+      "title": "IEEE 802.15.4 CSMA/CA Channel Access Failure & Sub-MAC Desync (0xE1 / 225)",
+      "patterns": [
+        "0xe1:\\s*MAC_CHANNEL_ACCESS_FAILURE",
+        "'?MAC_CHANNEL_ACCESS_FAILURE'?\\s*\\(0xe1\\)",
+        "'?MAC\\s+channel\\s+access\\s+failure'?\\s*\\(225\\)",
+        "MAC_CHANNEL_ACCESS_FAILURE:\\s*225",
+        "(?:status|error|code|DataConfirm(?:\\s+error)?|failed(?:\\s+with)?(?:\\s+error|\\s+status)?)\\s*[:=]?\\s*\\(?(?:0xe1|225)\\)?\\b",
+        "\"status\":\\s*225\\b",
+        "<(?:sl_|Zdo)?Status\\.MAC_CHANNEL_ACCESS_FAILURE:\\s*(?:0xe1|225)>",
+        "\\bMAC_CHANNEL_ACCESS_FAILURE\\b"
+      ],
+      "description": "The radio transceiver failed Clear Channel Assessment (CCA) across all 5 CSMA-CA backoff slots due to severe 2.4 GHz interference or a stuck Sub-MAC receiver state machine.",
+      "siliconRootCause": "On TI SimpleLink F2 (CC2652P / CC2652P7 / CC2674P10 CMD_IEEE_CSMA), foreground CSMA/TX requires an active background CMD_IEEE_RX chain to evaluate CCA. Following an Energy Detect (ED) scan, channel switch, or RF_FsmEventLastCommandDone SWI race, background RX aborts (DONE_ABORT = 0x0807) while upper-MAC software flags remain desynchronized, causing every subsequent CCA check to fail permanently with 0xE1 (225).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces self-healing Sub-MAC receiver and synthesizer state recovery across SMLIGHT CC2652P, CC2652P7 (CC1352P7), and CC2674P10 adapters and validates 0 crashes across 3,255 MAC boundary/fuzz vectors. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md",
+      "immediateMitigation": "Place coordinator on Zigbee Channel 15, 20, or 25 away from Wi-Fi lobes, isolate from USB 3.0 ports via Ethernet/PoE or a shielded extension cable, and upgrade to SMLIGHT ZeroStack firmware.",
+      "remedy": "Place coordinator on Zigbee Channel 15, 20, or 25 away from Wi-Fi lobes, isolate from USB 3.0 ports via Ethernet/PoE or a shielded extension cable, and upgrade to SMLIGHT ZeroStack firmware."
+    },
+    "MAC_0XE9_NO_ACK": {
+      "id": "MAC_0XE9_NO_ACK",
+      "code": "0xE9",
+      "statusHex": "0xE9",
+      "name": "MAC_NO_ACK",
+      "protocol": "zigbee",
+      "severity": "critical",
+      "remediationKey": "mac-collisions",
+      "title": "IEEE 802.15.4 MAC Unicast Acknowledgement Timeout & Sleepy Child Drops (0xE9 / 233)",
+      "patterns": [
+        "0xe9:\\s*MAC_NO_ACK",
+        "'?MAC_NO_ACK'?\\s*\\(0xe9\\)",
+        "'?MAC\\s+no\\s+ack'?\\s*\\(233\\)",
+        "MAC_NO_ACK:\\s*233",
+        "Status\\.MAC_NO_ACK(?:_RECEIVED)?:\\s*(?:0xe9|233)",
+        "(?:status|error|code|DataConfirm(?:\\s+error)?|failed(?:\\s+with)?(?:\\s+error|\\s+status)?)\\s*[:=]?\\s*\\(?(?:0xe9|233)\\)?\\b",
+        "\"status\":\\s*233\\b",
+        "<(?:sl_|Zdo)?Status\\.MAC_NO_ACK(?:_RECEIVED)?:\\s*(?:0xe9|233)>",
+        "\\bMAC_NO_ACK\\b"
+      ],
+      "description": "The transmitter sent all 4 IEEE 802.15.4 unicast frame retries without receiving a hardware MAC ACK within the 864 us turnaround window, or sleepy end devices (Aqara/Tuya/Sonoff) dropped off the parent table.",
+      "siliconRootCause": "When a sleepy Zigbee End Device (ZED) wakes and transmits a MAC Data Request (0x04), the F2 Cortex-M0 CPE checks its 32-slot hardware SrcMatch table in RFC_RAM to set Frame Pending (FP=1) in the 192 us Auto-ACK and notifies the upper MAC to dequeue the pending indirect frame. On stock Z-Stack, 11.11 ms per-frame NWK flash security walks, 30.96 ms TCLK lookup misses, and 163.9 ms NVOCMP flash compactions delay upper-MAC indirect frame dequeue past the sleepy sensor's narrow RX poll window (failing with 0xe9 / 233: MAC_NO_ACK), while offline battery ZEDs hoard nearly 100% of the shared nwkDB buffer pool.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) eliminates flash-read stalls during sleepy poll windows via O(1) in-RAM security (82.7 us NWK encrypt, 6.8 us TCLK lookup, 0 flash reads) and idle-only storage cleanup so queued indirect frames are dequeued and transmitted immediately while the polling ZED's RX window is open, combined with strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child — Zero Battery-Device Bottlenecks). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-no-ack-0xe9-sleepy-aqara-tuya-child-drops.md",
+      "immediateMitigation": "Add mains-powered Zigbee routers near low-LQI or battery devices, throttle noisy ZCL power-reporting plugs that cause on-air ACK collisions, and upgrade to SMLIGHT ZeroStack.",
+      "remedy": "Add mains-powered Zigbee routers near low-LQI or battery devices, throttle noisy ZCL power-reporting plugs that cause on-air ACK collisions, and upgrade to SMLIGHT ZeroStack."
+    },
+    "MAC_0XF0_TRANSACTION_EXPIRED": {
+      "id": "MAC_0XF0_TRANSACTION_EXPIRED",
+      "code": "0xF0",
+      "statusHex": "0xF0",
+      "name": "MAC_TRANSACTION_EXPIRED",
+      "protocol": "znp",
+      "severity": "warning",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Indirect MAC Transaction Expired Waiting for Sleepy End Device Poll (0xF0 / 240)",
+      "patterns": [
+        "0xf0:\\s*MAC_TRANSACTION_EXPIRED",
+        "'?MAC_TRANSACTION_EXPIRED'?\\s*\\(0xf0\\)",
+        "'?MAC\\s+transaction\\s+expired'?\\s*\\(240\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+error)?|failed(?:\\s+with)?(?:\\s+error|\\s+status)?)\\s*[:=]?\\s*\\(?(?:0xf0|240)\\)?\\b",
+        "\"status\":\\s*240\\b",
+        "<(?:sl_|Zdo)?Status\\.MAC_TRANSACTION_EXPIRED:\\s*(?:0xf0|240)>",
+        "\\bMAC_TRANSACTION_EXPIRED\\b"
+      ],
+      "description": "An outbound frame queued in the parent's indirect MAC buffer expired (7.68s default) before the target sleepy end device woke up and completed a MAC Data Request poll extraction.",
+      "siliconRootCause": "Sleepy Zigbee End Devices (ZEDs) that poll slower than NWK_INDIRECT_MSG_TIMEOUT (7.68s) or whose parent misses their brief RX poll window after the FP=1 Auto-ACK due to 11.11 ms flash security walks and 163.9 ms NV compactions fail to drain their parent's indirect queue before transaction expiry (0xF0 / 240), holding scarce nwkDB buffers hostage.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child — Zero Battery-Device Bottlenecks) and eliminates flash-read stalls during sleepy poll windows (82.7 us NWK encrypt, 6.8 us TCLK lookup, 0 flash reads) so sleepy children drain queued frames on their first wake poll without starving active routers. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-no-ack-0xe9-sleepy-aqara-tuya-child-drops.md",
+      "immediateMitigation": "Disable active availability pings for battery-powered sensors (use passive availability) and avoid sending rapid sequential ZCL commands to sleeping devices.",
+      "remedy": "Disable active availability pings for battery-powered sensors (use passive availability) and avoid sending rapid sequential ZCL commands to sleeping devices."
+    },
+    "MAC_0XF1_TRANSACTION_OVERFLOW": {
+      "id": "MAC_0XF1_TRANSACTION_OVERFLOW",
+      "code": "0xF1",
+      "statusHex": "0xF1",
+      "name": "MAC_TRANSACTION_OVERFLOW",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Indirect MAC Queue Overflow (0xF1 / 241: MAC_TRANSACTION_OVERFLOW)",
+      "patterns": [
+        "0xf1:\\s*MAC_TRANSACTION_OVERFLOW",
+        "'?MAC_TRANSACTION_OVERFLOW'?\\s*\\(0xf1\\)",
+        "'?MAC\\s+transaction\\s+overflow'?\\s*\\(241\\)",
+        "(?:status|error|code|DataConfirm(?:\\s+error)?|failed(?:\\s+with)?(?:\\s+error|\\s+status)?)\\s*[:=]?\\s*\\(?(?:0xf1|241)\\)?\\b",
+        "\"status\":\\s*241\\b",
+        "<(?:sl_|Zdo)?Status\\.MAC_TRANSACTION_OVERFLOW:\\s*(?:0xf1|241)>",
+        "\\bMAC_TRANSACTION_OVERFLOW\\b"
+      ],
+      "description": "The coordinator's indirect MAC transaction ring overflowed because too many messages are simultaneously queued waiting for sleepy end devices to poll.",
+      "siliconRootCause": "Stock Z-Stack allows sleeping or offline ZEDs to consume nearly 100% of the shared nwkDB / MAC_CFG_TX_DATA_MAX indirect buffer pool (up to 69 / 72 buffers), while 11.11 ms flash security stalls slow poll turnaround, starving active routers and rejecting subsequent indirect submissions with 0xF1 (241).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child), eliminates flash-read stalls during FP=1 sleepy poll windows (82.7 us NWK encrypt, 0 flash reads), and pairs them with O(1) 218-cycle memory allocation (Zero Battery-Device Bottlenecks & Zero Memory Fragmentation). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Ensure battery devices are excluded from rapid polling loops and mark them as passive in Zigbee2MQTT availability settings.",
+      "remedy": "Ensure battery devices are excluded from rapid polling loops and mark them as passive in Zigbee2MQTT availability settings."
+    },
+    "ZNP_SYS_RESET_IND": {
+      "id": "ZNP_SYS_RESET_IND",
+      "code": "SYS_RESET_IND",
+      "statusHex": "SYS_RESET_IND",
+      "name": "SYS_RESET_IND",
+      "protocol": "znp",
+      "severity": "critical",
+      "remediationKey": "issue-config-mismatch",
+      "title": "Unexpected Coordinator MCU Reset / Watchdog Reboot / Remote Fault (SYS_RESET_IND)",
+      "patterns": [
+        "SYS_RESET_IND",
+        "AREQ\\s*-\\s*SYS\\s*-\\s*resetInd",
+        "SYS\\.ResetInd\\.Callback",
+        "Received unexpected reset from adapter"
+      ],
+      "description": "The coordinator microcontroller spontaneously rebooted mid-operation and emitted an asynchronous SYS_RESET_IND (AREQ - SYS - resetInd) frame to the host.",
+      "siliconRootCause": "On legacy TI Z-Stack, spontaneous coordinator resets are triggered by: (1) deterministic remote CPU HardFault (Precise BusFault after 143,345-144,412 cycles) when parsing malformed over-the-air secured NWK frames (truncated AuxHeader/Payload/MIC), (2) watchdog starvation during 163.9 ms blocking NVOCMP flash compactions (triggered every 69 writes) or 2.99 s cryptographic replay floods, (3) post-brownout flash corruption requiring a 62-page erase recovery (20,232 B written), or (4) VDDS brownout sag on unpowered USB hubs during +20 dBm PA transmit peaks.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) eliminates remote OTA HardFaults (0 crashes across 12 malformed NWK/APS classes and 3,255 MAC boundary vectors, rejecting in 320-6,631 cycles — up to 402x faster), suppresses 1,000-frame replay floods 92.8x faster (32.4 ms vs 2.99 s), reduces NVM compaction frequency by 14.7x (0 B flash wear on unchanged state writes), and survives 22,959 brownout power-cut points with 0 lost records and 749x less reboot flash I/O (27 B vs 20,232 B). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md",
+      "immediateMitigation": "Verify power supply stability (use PoE or a powered USB 2.0 hub for +20 dBm adapters) and upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) to eliminate remote OTA HardFaults and NVOCMP watchdog resets.",
+      "remedy": "Verify power supply stability (use PoE or a powered USB 2.0 hub for +20 dBm adapters) and upgrade to SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) to eliminate remote OTA HardFaults and NVOCMP watchdog resets."
+    },
+    "EMBER_0X72_MAX_MESSAGE_LIMIT": {
+      "id": "EMBER_0X72_MAX_MESSAGE_LIMIT",
+      "code": "0x72",
+      "statusHex": "0x72",
+      "name": "EMBER_MAX_MESSAGE_LIMIT_REACHED",
+      "protocol": "ember",
+      "severity": "critical",
+      "remediationKey": "coordinator-buffer-overflow",
+      "title": "Silicon Labs EmberZNet APS In-Flight Unicast Limit Reached (0x72)",
+      "patterns": [
+        "EMBER_MAX_MESSAGE_LIMIT_REACHED",
+        "MAX_MESSAGE_LIMIT_REACHED",
+        "0x72:\\s*(?:EMBER_)?MAX_MESSAGE_LIMIT_REACHED",
+        "(?:status|error|code|sendUnicast|sendBroadcast|DataConfirm)\\s*[:=]?\\s*\\(?(?:0x72|114)\\)?\\b",
+        "<EmberStatus\\.MAX_MESSAGE_LIMIT_REACHED:\\s*(?:0x72|114)>"
+      ],
+      "description": "The EmberZNet NCP rejected an outbound unicast command because EMBER_APS_UNICAST_MESSAGE_COUNT in-flight messages are already queued awaiting APS acknowledgements.",
+      "siliconRootCause": "EmberZNet caps concurrent in-flight APS unicasts (typically 10-32 descriptors) and shares a finite packet buffer pool (emFreeBufferCount). When slow routes or offline nodes stall APS ACKs, the unicast descriptor table saturates and returns 0x72 (114).",
+      "zeroStackFix": "On SMLIGHT TI SimpleLink coordinators running ZeroStack (Release Zero 0.9.9-beta.1), O(1) memory management (218 cycles/alloc) and up to 75.5x faster APS TX security (113 us vs 8.53 ms) prevent in-flight unicast buffer starvation; EFR32 support is in active development. Learn more at https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md",
+      "immediateMitigation": "Use Zigbee Group broadcasts instead of looping individual unicasts in Home Assistant / Z2M automations, and disable active pings to offline devices.",
+      "remedy": "Use Zigbee Group broadcasts instead of looping individual unicasts in Home Assistant / Z2M automations, and disable active pings to offline devices."
+    },
+    "EMBER_0XA1_NETWORK_BUSY": {
+      "id": "EMBER_0XA1_NETWORK_BUSY",
+      "code": "0xA1",
+      "statusHex": "0xA1",
+      "name": "EMBER_NETWORK_BUSY",
+      "protocol": "ember",
+      "severity": "warning",
+      "remediationKey": "aodv-storms",
+      "title": "Silicon Labs EmberZNet Network & Broadcast Table Busy (0xA1)",
+      "patterns": [
+        "EMBER_NETWORK_BUSY",
+        "\\bNETWORK_BUSY\\b",
+        "0xa1:\\s*(?:EMBER_)?NETWORK_BUSY",
+        "(?:status|error|code|sendUnicast|sendBroadcast|DataConfirm)\\s*[:=]?\\s*\\(?(?:0xa1|161)\\)?\\b",
+        "<EmberStatus\\.NETWORK_BUSY:\\s*(?:0xa1|161)>"
+      ],
+      "description": "The EmberZNet stack rejected a broadcast or route discovery request with 0xA1 (EMBER_NETWORK_BUSY) because the Zigbee Broadcast Transaction Table (BTT) or NWK discovery state machine is saturated.",
+      "siliconRootCause": "Zigbee PRO limits concurrent active broadcasts across the mesh via the Broadcast Transaction Table (BTT). Rapid ZDO/AODV broadcasts or availability pings to dead nodes exhaust active broadcast slots, causing the NCP to return 0xA1 (161).",
+      "zeroStackFix": "In the SMLIGHT ZeroStack architecture (Release Zero 0.9.9-beta.1 on TI SimpleLink F2 coordinators; EFR32 in development), a 40-slot Broadcast Transaction Table (+33% capacity) and 20.3x faster broadcast echo suppression (147 us vs 3.00 ms) prevent bursty mesh traffic from tripping BTT lockouts. Learn more at https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md",
+      "immediateMitigation": "Enable availability backoff (pause_on_backoff_gt: 25) and reduce concurrent ZDO/network scan requests.",
+      "remedy": "Enable availability backoff (pause_on_backoff_gt: 25) and reduce concurrent ZDO/network scan requests."
+    },
+    "EMBER_ASH_NCP_FATAL_ERROR": {
+      "id": "EMBER_ASH_NCP_FATAL_ERROR",
+      "code": "ASH_NCP_FATAL_ERROR",
+      "statusHex": "ASH_NCP_FATAL_ERROR",
+      "name": "ASH_NCP_FATAL_ERROR",
+      "protocol": "ember",
+      "severity": "critical",
+      "remediationKey": "issue-ember-ash",
+      "title": "Silicon Labs EmberZNet ASHv2 / NCP Fatal Desynchronization & EZSP Overflow",
+      "patterns": [
+        "ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT",
+        "ASH_NCP_FATAL_ERROR",
+        "HOST_FATAL_ERROR",
+        "ASH_ERROR_(?:RESET_FAIL|TIMEOUTS|VERSION|NCP_RESET)",
+        "NCP entered failed state",
+        "Failed to start EZSP layer",
+        "EZSP_ERROR_OVERFLOW",
+        "EZSP_ERROR_QUEUE_FULL",
+        "\\bRXOF\\b"
+      ],
+      "description": "The ASHv2 UART framing driver or bellows EZSP controller lost lockstep synchronization or overflowed packet buffers on the Silicon Labs EFR32 NCP (ASH_NCP_FATAL_ERROR / EZSP_ERROR_OVERFLOW).",
+      "siliconRootCause": "NCP packet buffer pool exhaustion (emFreeBufferCount == 0) or EUSART0 hardware FIFO receive overrun (EUSART0:IF.RXOF bit 3 asserted) during dense broadcast/APS storms when ASHv2 nRdy flow control or TCP-serial bridge jitter delays ACK frames past the adaptive ARQ retransmission limit.",
+      "zeroStackFix": "Verify physical UART/Ethernet link stability and hardware flow control settings on the EFR32 NCP. On SMLIGHT TI SimpleLink F2 coordinators, ZeroStack (Release Zero 0.9.9-beta.1) provides DMA-driven UART recovery with 0 lost pings across hostile serial framing bursts (3-55 ms recovery vs 8.84 s blackout); EFR32 ZeroStack support is in active development. See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md",
+      "immediateMitigation": "Ensure a stable wired Ethernet connection for network coordinators, use a shielded USB 2.0 extension cable away from USB 3.0 interference, and verify hardware/software flow control alignment.",
+      "remedy": "Ensure a stable wired Ethernet connection for network coordinators, use a shielded USB 2.0 extension cable away from USB 3.0 interference, and verify hardware/software flow control alignment."
+    },
+    "EMBER_DELIVERY_FAILED": {
+      "id": "EMBER_DELIVERY_FAILED",
+      "code": "0x66",
+      "statusHex": "0x66",
+      "name": "EMBER_DELIVERY_FAILED",
+      "protocol": "ember",
+      "severity": "critical",
+      "remediationKey": "mac-collisions",
+      "title": "Silicon Labs EmberZNet APS/MAC Delivery Failed (0x66)",
+      "patterns": [
+        "Delivery failed for '?[^'\\s]+'?",
+        "EMBER_DELIVERY_FAILED",
+        "(?:status|error|code)\\s*[:=]?\\s*\\(?(?:0x66|102)\\)?\\b",
+        "<EmberStatus\\.DELIVERY_FAILED:\\s*(?:0x66|102)>"
+      ],
+      "description": "The EmberZNet coordinator transmitted the frame across all APS/MAC retries, but no acknowledgement was received from the target node.",
+      "siliconRootCause": "Caused by half-duplex 802.15.4 RF collisions from unthrottled ZCL reporting flooders, marginal link budget, or sleepy end-device poll timing misses when child tables and packet buffers are under heavy load.",
+      "zeroStackFix": "Throttle chatty power-monitoring plugs via ZCL Configure Reporting and add mains routers. On SMLIGHT TI SimpleLink F2 coordinators, ZeroStack (Release Zero 0.9.9-beta.1; EFR32 in active development) provides 135x higher routed hop security throughput (162 us vs 22.19 ms), eliminates flash-read stalls after FP=1 Auto-ACK during sleepy poll windows (82.7 us NWK encrypt, 6.8 us TCLK lookup, 0 flash reads), and enforces indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child). See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-no-ack-0xe9-sleepy-aqara-tuya-child-drops.md",
+      "immediateMitigation": "Throttle chatty power-monitoring plugs using OTA ZCL Configure Reporting and add mains-powered Zigbee routers near low-LQI devices.",
+      "remedy": "Throttle chatty power-monitoring plugs using OTA ZCL Configure Reporting and add mains-powered Zigbee routers near low-LQI devices."
+    },
+    "OTBR_SPINEL_TIMEOUT": {
+      "id": "OTBR_SPINEL_TIMEOUT",
+      "code": "OTBR_SPINEL_TIMEOUT",
+      "statusHex": "SPINEL_TIMEOUT",
+      "name": "OTBR_SPINEL_TIMEOUT",
+      "protocol": "thread",
+      "severity": "critical",
+      "remediationKey": "ash-uart-link",
+      "title": "OpenThread RCP Spinel Timeout (WaitForWritable / HandleResponse)",
+      "patterns": [
+        "WaitForWritable\\(\\)\\s*(?:timed\\s*out|failed)",
+        "RadioSpinel::HandleResponse\\(\\)\\s*Timeout",
+        "Wait\\s+response\\s+timeout",
+        "SPINEL_STATUS_FAILURE",
+        "RCP\\s+reset:\\s*RESET_(?:WATCHDOG|FAULT)"
+      ],
+      "description": "otbr-agent lost HDLC-Lite Spinel synchronization with the IEEE 802.15.4 RCP over UART/TCP.",
+      "remedy": "Verify UART baud rate (460800), disable software XON/XOFF flow control, verify hardware RTS/CTS wiring, and prefer a local USB/UART interface for OpenThread RCP.",
+      "immediateMitigation": "Verify UART baud rate (460800), disable software XON/XOFF flow control, verify hardware RTS/CTS wiring, and prefer a local USB/UART interface for OpenThread RCP.",
+      "siliconRootCause": "Host-to-RCP HdlcInterface serial framing stall, flow-control mismatch, or TCP-to-serial socket latency exceeding otbr-agent Spinel frame timeouts.",
+      "zeroStackFix": "Verify physical UART/USB HDLC-Lite/Spinel link integrity, disable software XON/XOFF flow control, and verify hardware RTS/CTS settings on the host border router. (Note: SMLIGHT ZeroStack Release Zero 0.9.9-beta.1 is a Zigbee 3.0 / R23 Coordinator & Router firmware for SMLIGHT CC2652P, CC2652P7, and CC2674P10 adapters: https://smlight.tech/software/zerostack).",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    }
+  },
+  "remediationMeta": {
+    "flood": {
+      "siliconRootCause": "Unthrottled ZCL telemetry reports (e.g. Tuya TS011F / _TZ3000_ plugs firing at >0.5-5 msg/s) monopolize half-duplex IEEE 802.15.4 CSMA-CA contention windows and force legacy Z-Stack to execute O(N*P) linear flash log walks on every frame (532,182 cycles = 11.09 ms per NWK decrypt and 533,156 cycles = 11.11 ms per NWK encrypt at D=150), saturating CPU at ~45 routed pkt/s and starving host SRSP commands.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) executes per-frame NWK security in O(1) constant time with 0 flash reads (82.7 us encrypt / 79.7 us decrypt — 134.4x to 139.2x faster, >6,100 routed pkt/s ceiling) and cuts host serial reply latency by 83% (816 vs 4,921 cycles). Learn more at https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md"
+    },
+    "delta-zero": {
+      "siliconRootCause": "Devices transmitting back-to-back identical ZCL attribute values (zero measurement delta) consume ~3.8-4.2ms of physical RF airtime per frame, trigger 11.09 ms per-frame flash security scans on legacy Z-Stack, and force redundant NV writes (100,714 cycles per write, triggering 163.9 ms flash compaction stalls every 69 writes).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) delivers O(1) in-RAM NWK security (79.7 us decrypt, 139.2x faster) and idempotent NVM state deduplication (3,770 cycles with 0 bytes written to flash on unchanged state — 26.7x faster and 14.7x lower flash compaction rate). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md"
+    },
+    "mac-collisions": {
+      "siliconRootCause": "In stock TI Z-Stack, concurrent ED scans or channel noise can desynchronize background CMD_IEEE_RX from upper-MAC CSMA state (0xE1 / 225), while 11.11 ms per-frame flash security walks and 163.9 ms NV compactions after the 192 us FP=1 Auto-ACK delay indirect frame dequeue past sleepy ZED RX poll windows (0xE9 / 233).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces self-healing Sub-MAC state recovery, O(1) 82.7 us in-RAM security (0 flash reads) during sleepy poll turnaround, and strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child — Zero Battery-Device Bottlenecks) on SMLIGHT CC2652P, CC2652P7, and CC2674P10 adapters. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md"
+    },
+    "coordinator-buffer-overflow": {
+      "siliconRootCause": "Stock Z-Stack uses a first-fit variable-block OSAL heap (OSAL_Memory) that walks fragmented free lists (2,550 cycles at 64 holes) and fragments under concurrent unicast bursts (0x10 MEM_ERROR), while unpolled sleepy ZEDs hoard up to 69 / 72 nwkDB descriptors for 7.68s each (0x11 BUFFER_FULL / 0xF0 / 0xF1 / 0xB2 APS_TABLE_FULL / 0xC7 NWK_TABLE_FULL).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) provides constant-time O(1) memory allocation in 218 cycles (11.7x faster at 64 heap holes), heap-independent timer start in 1,448 cycles (6.9x faster), strict indirect queue quota isolation (50% pool cap, max 2 queued frames per sleeping child), and custom-tuned RAM/route tables up to 200-300+ source routes across SMLIGHT CC2652P, CC2652P7, and CC2674P10 adapters. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md"
+    },
+    "ash-uart-link": {
+      "siliconRootCause": "UART framing CRC/comm errors and serial disconnects occur when hardware FIFOs overrun during flash-erase interrupt masking or when hostile delimiter bursts / truncated frames lock up legacy Z-Stack's NPI parser for 8.84 seconds (44 lost pings).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) provides hardened DMA-driven serial framing that recovers from 300x SOF floods, random line noise, and truncated frames in 3-55 ms with 0 lost pings and live auto-baud (115200 / 460800 / 1000000). Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "gentime-floods": {
+      "siliconRootCause": "Tuya and third-party devices polling ZCL Cluster 0x000A (genTime) in tight loops flood the coordinator with synchronous read requests, compounding SREQ/AREQ contention and burning 11.09 ms per frame in legacy flash security walks.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) processes NWK security in 79.7 us (139.2x faster) and APS security up to 75.5x faster (113 us vs 8.53 ms), preventing inbound ZCL genTime floods from delaying host commands. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-srsp-af-datarequest-6000ms-timeout.md"
+    },
+    "aodv-storms": {
+      "siliconRootCause": "Each failed ping to an offline node forces the coordinator to broadcast an AODV Route Request (0xFFFC) that floods across every router. In a 50-router echo storm (1,000 duplicate broadcasts), legacy Z-Stack spends 3.00 ms per echo (3.00 seconds total CPU lockup), and a 64-frame broadcast flood saturates its 30-slot BTT (200.25 ms CPU).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) expands the Broadcast Transaction Table by +33% (40 vs 30 slots), suppresses 50-router broadcast echoes 20.3x faster (147 us p50 vs 3.00 ms; 151.16 ms vs 3.00 s total CPU), sheds BTT overflow 17.3x faster (174 us vs 3.01 ms), and scales Many-to-One source routing up to 200-300+ entries. Details: https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/znp-0x10-mem-error-0x11-buffer-full-0xc7-nwk-table-full.md"
+    },
+    "issue-channel-mismatch": {
+      "siliconRootCause": "When host configuration forces an in-flight channel migration without ZDO Mgmt_NWK_Update_req broadcast propagation, sleeping end devices and routers remain stranded on the previous 802.15.4 channel.",
+      "zeroStackFix": "SMLIGHT ZeroStack validates NVRAM channel invariants at boot (6.3 us key/descriptor reads, 213.9x faster) and executes deterministic Sub-MAC receiver and synthesizer recovery.",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md"
+    },
+    "issue-adapter-discovery": {
+      "siliconRootCause": "Host USB/serial enumeration failed because the serial path symlink changed or container device passthrough is missing.",
+      "zeroStackFix": "SMLIGHT SLZB coordinators provide persistent mDNS/TCP discovery and deterministic USB-UART bridge descriptors alongside ZeroStack's live auto-baud (115200 / 460800 / 1000000) and instant serial ping response (4,618 cycles). See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "issue-config-mismatch": {
+      "siliconRootCause": "Host PAN ID, Extended PAN ID, or Network Key in configuration.yaml diverged from the coordinator's non-volatile NVOCMP/NVM3 flash state.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) enforces power-fail-safe NVM commits verified across 22,959 hardware power-cut points (0 lost records, 0 NOR verify conflicts, and 749x less post-brownout reboot flash I/O: 27 B vs 20,232 B). See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "issue-pan-conflict": {
+      "siliconRootCause": "An active neighboring 802.15.4 coordinator or un-reset router on the same channel is broadcasting beacons with an identical 16-bit PAN ID.",
+      "zeroStackFix": "SMLIGHT ZeroStack provides clean ZDO PAN ID conflict detection and deterministic channel/PAN migration without Sub-MAC state lockups.",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/mac-channel-access-failure-0xe1-cca-csma-stuck.md"
+    },
+    "issue-ember-ash": {
+      "siliconRootCause": "NCP packet buffer pool exhaustion (emFreeBufferCount == 0) or EUSART0 FIFO receive overrun (RXOF) stalled ASHv2 ACK frames past the host retransmission limit.",
+      "zeroStackFix": "Verify EFR32 UART/Ethernet link stability and flow control settings. On SMLIGHT TI SimpleLink F2 coordinators, ZeroStack (Release Zero 0.9.9-beta.1; EFR32 in development) eliminates serial lockups with 0 lost pings across hostile UART framing storms (3-55 ms recovery vs 8.84 s blackout) and O(1) 218-cycle memory allocation. See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "issue-ezsp-version": {
+      "siliconRootCause": "The Silicon Labs EFR32 adapter is running legacy EZSP protocol firmware (< v13) that lacks modern zigbee-herdsman ('ember' driver) and bellows frame control and callback framing.",
+      "zeroStackFix": "Upgrade the EFR32 adapter to current EmberZNet NCP firmware (>= EZSP v13) via SMLIGHT SLZB-OS or Web Flasher. Note that SMLIGHT ZeroStack 0.9.9-beta.1 (Release Zero 0.9.9-beta.1) targets TI SimpleLink F2 ZNP coordinators (SLZB-06, SLZB-06U, SLZB-06P7, SLZB-06P7U, SLZB-06P7v1, SLZB-07P7, SLZB-06P10, SLZB-07P10 — not EZSP), while Silicon Labs EFR32 ZeroStack support is in active development (https://smlight.tech/software/zerostack).",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "issue-zstack-srsp": {
+      "siliconRootCause": "Multi-second NVOCMP flash sector compaction during zmain() startup (163.9 ms per page with interrupts masked) or hostile UART framing bursts desynchronize the legacy NPI parser for 8.84 seconds (44 lost pings).",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) cuts NVM compaction frequency by 14.7x (13.7 ms vs 163.9 ms), reduces post-brownout reboot flash writes by 749x (27 B vs 20,232 B), and recovers from hostile UART framing in 3-55 ms with 0 lost pings. See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    },
+    "issue-adapter-timeout": {
+      "siliconRootCause": "Coordinator UART initialization timed out due to NVOCMP warm-reset flash compaction stalls, baudrate mismatch, or hardware flow control (RTS/CTS) asserted on an adapter without DIO10/DIO11 RTS/CTS wiring.",
+      "zeroStackFix": "SMLIGHT ZeroStack (Release Zero 0.9.9-beta.1) supports live auto-baud (115200 / 460800 / 1000000), cuts SYS_PING CPU cycles by 53% (4,618 vs 9,790 cycles), and recovers from UART framing noise in 3-55 ms with 0 lost pings. See https://smlight.tech/software/zerostack",
+      "zeroStackDiagUrl": "https://github.com/smlight-tech/zerostack/blob/main/diagnostics/z2m-zha-adapter-connect-sys-ping-timeout-warm-reset.md"
+    }
+  }
+}

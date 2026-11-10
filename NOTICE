@@ -1,0 +1,9 @@
+SMLIGHT ZeroStack Diagnostics, Benchmarks & Web Analyzer
+Copyright (c) 2026 SMLIGHT (https://smlight.tech)
+
+This repository includes documentation, diagnostic catalogs (diagnosticsCatalog.json),
+and web analyzer assets licensed under the Apache License, Version 2.0 (Apache-2.0).
+
+All compiled SMLIGHT ZeroStack firmware images and binaries attached to GitHub Releases
+or distributed by SMLIGHT are governed by FIRMWARE_LICENSE.md (Proprietary — Copyright (c) 2026 SMLIGHT. All Rights Reserved).
+
